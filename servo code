@@ -1,0 +1,22 @@
+#include <Servo.h>
+
+Servo servoX;  // For X-axis control
+Servo servoY;  // For Y-axis control
+
+void setup() {
+  servoX.attach(9);   // MG996R #1 signal pin
+  servoY.attach(10);  // MG996R #2 signal pin
+}
+
+void loop() {
+  int xVal = analogRead(A0);             // Read joystick X-axis
+  int yVal = analogRead(A1);             // Read joystick Y-axis
+
+  int angleX = map(xVal, 0, 1023, 0, 180);
+  int angleY = map(yVal, 0, 1023, 0, 180);
+
+  servoX.write(angleX);
+  servoY.write(angleY);
+
+  delay(15); // Small delay for stability
+}
