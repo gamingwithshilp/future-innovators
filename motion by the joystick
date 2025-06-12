@@ -1,0 +1,67 @@
+#include <Servo.h>
+
+const int joyX = A0;  // X-axis
+const int joyY = A1;  // Y-axis
+const int joyBtn = 2; // Switch button
+
+const int in1 = 12;
+const int in2 = 13;
+const int enA = 14;
+
+const int steeringPin = 9;
+const int armPin = 10;
+const int ledPin = 8;
+
+Servo steering;
+Servo arm;
+
+void setup() {
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(enA, OUTPUT);
+  pinMode(joyBtn, INPUT_PULLUP);
+  pinMode(ledPin, OUTPUT);
+  
+  steering.attach(steeringPin);
+  arm.attach(armPin);
+  
+  Serial.begin(9600);
+}
+
+void loop() {
+  int xVal = analogRead(joyX);
+  int yVal = analogRead(joyY);
+  int btnState = digitalRead(joyBtn);
+
+  // Drive motor
+  if (yVal > 600) {
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+    analogWrite(enA, map(yVal, 600, 1023, 0, 255));
+  } else if (yVal < 400) {
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+    analogWrite(enA, map(400 - yVal, 0, 400, 0, 255));
+  } else {
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+  }
+
+  // Steering servo
+  int angle = map(xVal, 0, 1023, 30, 150); // Adjust for your servo range
+  steering.write(angle);
+
+  // Arm servo (controlled when both X and Y are pushed strongly)
+  if (xVal > 800 && yVal > 800) {
+    arm.write(180); // Lift arm
+  } else if (xVal < 200 && yVal < 200) {
+    arm.write(0);   // Lower arm
+  } else {
+    arm.write(90);  // Rest position
+  }
+
+  // LED or buzzer (Joystick button press)
+  digitalWrite(ledPin, btnState == LOW ? HIGH : LOW);
+
+  delay(20);
+}
