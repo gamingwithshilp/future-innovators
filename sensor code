@@ -1,13 +1,9 @@
-    /*
-Refrains : https://create.arduino.cc/projecthub/mircemk/diy-air-quality-monitor-with-sharp-gp2y1010au0f-sensor-7b0262
-https://electropeak.com/learn/interfacing-gp2y1010au0f-optical-dust-sensor-module-with-arduino/?srsltid=AfmBOoqKSn9oaH4d2qgOTPajUkKcfxbk347zBndE7c9QzFA4hPRyCrEX
+// https://electropeak.com/learn/interfacing-gp2y1010au0f-optical-dust-sensor-module-with-arduino/?srsltid=AfmBOoqKSn9oaH4d2qgOTPajUkKcfxbk347zBndE7c9QzFA4hPRyCrEX
+#include <DHT.h>
 
- Standalone Sketch to use with a Arduino UNO and a
- Sharp Optical Dust Sensor GP2Y1010AU0F
-*/
-
-int measurePin = A0; //Connect dust sensor to Arduino A0 pin
-int ledPower = 2;   //Connect 3 led driver pins of dust sensor to Arduino D2
+// Dust Sensor
+int measurePin = A0; // Dust sensor analog output
+int ledPower = 2;    // Dust sensor LED control pin
 
 int samplingTime = 280;
 int deltaTime = 40;
@@ -17,32 +13,59 @@ float voMeasured = 0;
 float calcVoltage = 0;
 float dustDensity = 0;
 
-void setup(){
+// DHT11 Sensor
+#define DHTPIN 3          // DHT11 connected to digital pin 3
+#define DHTTYPE DHT11     // DHT11 type
+DHT dht(DHTPIN, DHTTYPE);
+
+// MQ Gas Sensor
+int gasSensorPin = A1; // MQ analog output
+
+void setup() {
   Serial.begin(9600);
-  pinMode(ledPower,OUTPUT);
+  pinMode(ledPower, OUTPUT);
+  dht.begin();
 }
 
-void loop(){
-  digitalWrite(ledPower,LOW); // power on the LED
+void loop() {
+  // ---------- Dust Sensor ----------
+  digitalWrite(ledPower, LOW);
   delayMicroseconds(samplingTime);
 
-  voMeasured = analogRead(measurePin); // read the dust value
+  voMeasured = analogRead(measurePin);
 
   delayMicroseconds(deltaTime);
-  digitalWrite(ledPower,HIGH); // turn the LED off
+  digitalWrite(ledPower, HIGH);
   delayMicroseconds(sleepTime);
 
-  // 0 - 5V mapped to 0 - 1023 integer values
-  // recover voltage
   calcVoltage = voMeasured * (5.0 / 1024.0);
-
-  // linear eqaution taken from http://www.howmuchsnow.com/arduino/airquality/
-  // Chris Nafis (c) 2012
   dustDensity = 170 * calcVoltage - 0.1;
 
-  
-  Serial.println(dustDensity); // unit: ug/m3
+  // ---------- DHT11 Sensor ----------
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
 
-  delay(1000);
+  // ---------- Gas Sensor ----------
+  int gasValue = analogRead(gasSensorPin);
+
+  // ---------- Serial Output ----------
+  Serial.println("---- Sensor Data ----");
+  Serial.print("Dust Density: ");
+  Serial.print(dustDensity);
+  Serial.println(" ug/m3");
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println(" °C");
+
+  Serial.print("Humidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+
+  Serial.print("Gas Value: ");
+  Serial.println(gasValue);
+
+  Serial.println("----------------------\n");
+
+  delay(2000); // 2 second delay
 }
-
