@@ -1,42 +1,50 @@
-// https://electropeak.com/learn/interfacing-gp2y1010au0f-optical-dust-sensor-module-with-arduino/?srsltid=AfmBOoqKSn9oaH4d2qgOTPajUkKcfxbk347zBndE7c9QzFA4hPRyCrEX
 #include <DHT.h>
 #include <Servo.h>
 
-Servo servoX;  // For X-axis control
-Servo servoY;  // For Y-axis control
+// --- Servo ---
+Servo servoX, servoY;
+const int servoXPin = 9;
+const int servoYPin = 10;
+const int joyX = A2;
+const int joyY = A3;
 
+// --- Dust Sensor ---
+const int dustSensorPin = A0;
+const int dustLEDPin = 2;
 
-// Dust Sensor
-int measurePin = A0; // Dust sensor analog output
-int ledPower = 2;    // Dust sensor LED control pin
-
-int samplingTime = 280;
-int deltaTime = 40;
-int sleepTime = 9680;
-
-float voMeasured = 0;
-float calcVoltage = 0;
-float dustDensity = 0;
-
-// DHT11 Sensor
-#define DHTPIN 3          // DHT11 connected to digital pin 3
-#define DHTTYPE DHT11     // DHT11 type
+// --- DHT11 ---
+#define DHTPIN 3
+#define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
-// MQ Gas Sensor
-int gasSensorPin = A1; // MQ analog output
+// --- Gas Sensor ---
+const int gasSensorPin = A1;
+
+// --- Sensor Values ---
+float dustDensity = 0;
+float temperature = 0;
+float humidity = 0;
+int gasValue = 0;
+
+// --- Timers ---
+unsigned long lastSensorTime = 0;
+const unsigned long sensorInterval = 2000; // 2 seconds
 
 void setup() {
-   servoX.attach(9);   // MG996R #1 signal pin
-  servoY.attach(10); 
   Serial.begin(9600);
-  pinMode(ledPower, OUTPUT);
   dht.begin();
+  pinMode(dustLEDPin, OUTPUT);
+
+  servoX.attach(servoXPin);
+  servoY.attach(servoYPin);
+
+  Serial.println("System Ready.");
 }
 
 void loop() {
-   int xVal = analogRead(A3);             // Read joystick X-axis
-  int yVal = analogRead(A4);             // Read joystick Y-axis
+  // --- Read Joystick and Move Servos (Always) ---
+  int xVal = analogRead(joyX);
+  int yVal = analogRead(joyY);
 
   int angleX = map(xVal, 0, 1023, 0, 180);
   int angleY = map(yVal, 0, 1023, 0, 180);
@@ -44,45 +52,39 @@ void loop() {
   servoX.write(angleX);
   servoY.write(angleY);
 
-  delay(15); // Small delay for stability
-  // ---------- Dust Sensor ----------
-  digitalWrite(ledPower, LOW);
-  delayMicroseconds(samplingTime);
+  // --- Sensor Reading and Printing (Every 2 sec) ---
+  unsigned long currentTime = millis();
+  if (currentTime - lastSensorTime >= sensorInterval) {
+    lastSensorTime = currentTime;
 
-  voMeasured = analogRead(measurePin);
+    // Dust Sensor Read
+    digitalWrite(dustLEDPin, LOW);
+    delayMicroseconds(280);
+    int dustRaw = analogRead(dustSensorPin);
+    delayMicroseconds(40);
+    digitalWrite(dustLEDPin, HIGH);
 
-  delayMicroseconds(deltaTime);
-  digitalWrite(ledPower, HIGH);
-  delayMicroseconds(sleepTime);
+    float voltage = dustRaw * (5.0 / 1023.0);
+    dustDensity = 170 * voltage - 0.1;
+    if (dustDensity < 0) dustDensity = 0;
 
-  calcVoltage = voMeasured * (5.0 / 1024.0);
-  dustDensity = 170 * calcVoltage - 0.1;
+    // DHT11 Read
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+    if (!isnan(t)) temperature = t;
+    if (!isnan(h)) humidity = h;
 
-  // ---------- DHT11 Sensor ----------
-  float humidity = dht.readHumidity();
-  float temperature = dht.readTemperature();
+    // Gas Sensor Read
+    gasValue = analogRead(gasSensorPin);
 
-  // ---------- Gas Sensor ----------
-  int gasValue = analogRead(gasSensorPin);
+    // --- Print to Serial ---
+    Serial.println("---- Sensor Data ----");
+    Serial.print("Dust Density: "); Serial.print(dustDensity); Serial.println(" ug/m3");
+    Serial.print("Temperature : "); Serial.print(temperature); Serial.println(" °C");
+    Serial.print("Humidity    : "); Serial.print(humidity); Serial.println(" %");
+    Serial.print("Gas Value   : "); Serial.println(gasValue);
+    Serial.println("----------------------\n");
+  }
 
-  // ---------- Serial Output ----------
-  Serial.println("---- Sensor Data ----");
-  Serial.print("Dust Density: ");
-  Serial.print(dustDensity);
-  Serial.println(" ug/m3");
-
-  Serial.print("Temperature: ");
-  Serial.print(temperature);
-  Serial.println(" °C");
-
-  Serial.print("Humidity: ");
-  Serial.print(humidity);
-  Serial.println(" %");
-
-  Serial.print("Gas Value: ");
-  Serial.println(gasValue);
-
-  Serial.println("----------------------\n");
-
-  delay(2000); // 2 second delay
+  // No delay! Everything is handled by timing
 }
