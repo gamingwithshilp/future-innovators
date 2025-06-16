@@ -1,107 +1,71 @@
-#include <Servo.h>
+// https://electropeak.com/learn/interfacing-gp2y1010au0f-optical-dust-sensor-module-with-arduino/?srsltid=AfmBOoqKSn9oaH4d2qgOTPajUkKcfxbk347zBndE7c9QzFA4hPRyCrEX
 #include <DHT.h>
+#include <Servo.h>
 
-// --- Servo Motors ---
-Servo servoX;  // For X-axis (e.g. steering)
-Servo servoY;  // For Y-axis (e.g. arm)
+Servo servoX;  // For X-axis control
+Servo servoY;  // For Y-axis control
 
-// --- Joystick Pins ---
-const int joyX = A0;
-const int joyY = A1;
-const int joyBtn = 2;
 
-// --- DC Motor Pins ---
-const int in1 = 12;
-const int in2 = 13;
-const int enA = 14;
+// Dust Sensor
+int measurePin = A0; // Dust sensor analog output
+int ledPower = 2;    // Dust sensor LED control pin
 
-// --- Output Indicators ---
-const int ledPin = 8;
-
-// --- Dust Sensor ---
-const int dustPin = A2;
-const int ledPower = 3; // Dust sensor LED control pin
 int samplingTime = 280;
 int deltaTime = 40;
 int sleepTime = 9680;
 
-// --- DHT11 Sensor ---
-#define DHTPIN 4
-#define DHTTYPE DHT11
+float voMeasured = 0;
+float calcVoltage = 0;
+float dustDensity = 0;
+
+// DHT11 Sensor
+#define DHTPIN 3          // DHT11 connected to digital pin 3
+#define DHTTYPE DHT11     // DHT11 type
 DHT dht(DHTPIN, DHTTYPE);
 
-// --- Gas Sensor ---
-const int gasSensorPin = A3;
+// MQ Gas Sensor
+int gasSensorPin = A1; // MQ analog output
 
 void setup() {
-  // Joystick button & outputs
-  pinMode(joyBtn, INPUT_PULLUP);
-  pinMode(ledPin, OUTPUT);
-
-  // DC Motor setup
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(enA, OUTPUT);
-
-  // Dust sensor LED control
-  pinMode(ledPower, OUTPUT);
-
-  // Start peripherals
-  servoX.attach(9);
-  servoY.attach(10);
-  dht.begin();
-
+   servoX.attach(9);   // MG996R #1 signal pin
+  servoY.attach(10); 
   Serial.begin(9600);
+  pinMode(ledPower, OUTPUT);
+  dht.begin();
 }
 
 void loop() {
-  // ------------------ Joystick ------------------
-  int xVal = analogRead(joyX);
-  int yVal = analogRead(joyY);
-  int btnState = digitalRead(joyBtn);
+   int xVal = analogRead(A3);             // Read joystick X-axis
+  int yVal = analogRead(A4);             // Read joystick Y-axis
 
-  // --- Servo Control ---
-  int angleX = map(xVal, 0, 1023, 10, 170);
-  int angleY = map(yVal, 0, 1023, 10, 170);
+  int angleX = map(xVal, 0, 1023, 0, 180);
+  int angleY = map(yVal, 0, 1023, 0, 180);
+
   servoX.write(angleX);
   servoY.write(angleY);
 
-  // --- DC Motor (based on Y-axis) ---
-  if (yVal > 600) {
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-    analogWrite(enA, map(yVal, 600, 1023, 0, 255));
-  } else if (yVal < 400) {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-    analogWrite(enA, map(400 - yVal, 0, 400, 0, 255));
-  } else {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
-  }
-
-  // --- LED on Button Press ---
-  digitalWrite(ledPin, btnState == LOW ? HIGH : LOW);
-
-  // ------------------ Dust Sensor ------------------
+  delay(15); // Small delay for stability
+  // ---------- Dust Sensor ----------
   digitalWrite(ledPower, LOW);
   delayMicroseconds(samplingTime);
-  int voMeasured = analogRead(dustPin);
+
+  voMeasured = analogRead(measurePin);
+
   delayMicroseconds(deltaTime);
   digitalWrite(ledPower, HIGH);
   delayMicroseconds(sleepTime);
 
-  float voltage = voMeasured * (5.0 / 1024.0);
-  float dustDensity = 170 * voltage - 0.1;
+  calcVoltage = voMeasured * (5.0 / 1024.0);
+  dustDensity = 170 * calcVoltage - 0.1;
 
-  // ------------------ DHT11 Sensor ------------------
-  float temperature = dht.readTemperature();
+  // ---------- DHT11 Sensor ----------
   float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
 
-  // ------------------ Gas Sensor ------------------
+  // ---------- Gas Sensor ----------
   int gasValue = analogRead(gasSensorPin);
 
-  // ------------------ Serial Monitor Output ------------------
+  // ---------- Serial Output ----------
   Serial.println("---- Sensor Data ----");
   Serial.print("Dust Density: ");
   Serial.print(dustDensity);
@@ -115,10 +79,10 @@ void loop() {
   Serial.print(humidity);
   Serial.println(" %");
 
-  Serial.print("Gas Sensor: ");
+  Serial.print("Gas Value: ");
   Serial.println(gasValue);
 
   Serial.println("----------------------\n");
 
-  delay(2000); // Wait before next loop
+  delay(2000); // 2 second delay
 }
